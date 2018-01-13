@@ -1,0 +1,2 @@
+# SimpleIDB
+Simple IndexedDB Wrapper
