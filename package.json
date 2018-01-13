@@ -1,0 +1,43 @@
+{
+  "name": "@petamoriken/simpleidb",
+  "description": "Simple IndexedDB Wrapper",
+  "version": "0.0.1",
+  "main": "lib/index.js",
+  "jsnext:main": "src/index.js",
+  "types": "declaration.d.ts",
+  "author": "Kenta Moriuchi <moriken@kimamass.com> (https://moriken.kimamass.com)",
+  "bugs": {
+    "url": "https://github.com/petamoriken/SimpleIDB/issues"
+  },
+  "homepage": "https://git.io/SimpleIDB",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/petamoriken/SimpleIDB"
+  },
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE",
+    ".babelrc",
+    ".eslintignore",
+    ".eslintrc.js",
+    "yarn.lock",
+    "src",
+    "lib",
+    "declaration.d.ts"
+  ],
+  "keywords": [
+    "IndexedDB"
+  ],
+  "scripts": {
+    "build": "babel src -d lib",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-eslint": "^8.2.1",
+    "babel-preset-env": "^1.6.1",
+    "eslint": "^4.15.0"
+  }
+}
