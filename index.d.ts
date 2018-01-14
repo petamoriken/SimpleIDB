@@ -1,8 +1,12 @@
-type SimpleIDBKey = string | number | Date;
-type SimpleIDBQuery = IDBKeyRange | SimpleIDBKey[] | null;
-type SimpleIDBKeyAndValue = { key: SimpleIDBKey, value: any };
+export type SimpleIDBKey = string | number | Date;
+export type SimpleIDBQuery = IDBKeyRange | SimpleIDBKey[] | null;
 
-interface SimpleIDB {
+export interface SimpleIDBKeyAndValue {
+    key: SimpleIDBKey,
+    value: any,
+}
+
+export declare class SimpleIDB {
     constructor(dbName: string, dbVersion: number, onupgradeneeded: (this: IDBOpenDBRequest, event: IDBVersionChangeEvent) => any);
     add(storeName: string, value: any, key?: SimpleIDBKey): Promise<SimpleIDBKey>;
     get(storeName: string, key: SimpleIDBKey): Promise<any>;

@@ -4,7 +4,6 @@
   "version": "0.0.1",
   "main": "lib/index.js",
   "jsnext:main": "src/index.js",
-  "types": "declaration.d.ts",
   "author": "Kenta Moriuchi <moriken@kimamass.com> (https://moriken.kimamass.com)",
   "bugs": {
     "url": "https://github.com/petamoriken/SimpleIDB/issues"
