@@ -24,7 +24,7 @@
     "yarn.lock",
     "src",
     "lib",
-    "declaration.d.ts"
+    "index.d.ts"
   ],
   "keywords": [
     "IndexedDB"
