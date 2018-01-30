@@ -81,6 +81,22 @@ export class SimpleIDB {
     }
 
     /**
+     * ObjectStore の値を取得し、同時に削除する
+     * @param storeName ObjectStore の名前
+     * @param key 取得、削除する値のキー
+     */
+    getAndDelete(storeName, key) {
+        return new Promise(async (resolve, reject) => {
+            let value = null;
+            const store = await this.getObjectStore(storeName, "readwrite", () => resolve(value), reject);
+            store.get(key).onsuccess = (event) => {
+                value = event.target.result;
+                store.delete(key);
+            };
+        });
+    }
+
+    /**
      * ObjectStore の値を複数取得する
      * @param storeName ObjectStore の名前
      * @param query 取得する際のクエリ。null の場合全件取得する

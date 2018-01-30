@@ -45,6 +45,13 @@ export declare class SimpleIDB {
     delete(storeName: string, key: SimpleIDBInputKey): Promise<void>;
 
     /**
+     * ObjectStore の値を取得し、同時に削除する
+     * @param storeName ObjectStore の名前
+     * @param key 取得、削除する値のキー
+     */
+    getAndDelete(storeName: string, key: SimpleIDBInputKey): Promise<any>;
+
+    /**
      * ObjectStore の値を複数取得する
      * @param storeName ObjectStore の名前
      * @param query 取得する際のクエリ。null の場合全件取得する
