@@ -9,18 +9,25 @@ export class SimpleIDB {
         /**
          * @private {IDBDatabase | null}
          */
-        this.db = null;
+        this._db = null;
 
         /**
          * @private {Promise<void>}
          */
-        this.loaded = new Promise((resolve, reject) => {
+        this._ready = new Promise((resolve, reject) => {
             request.onsuccess = (event) => {
-                this.db = event.target.result;
+                this._db = event.target.result;
                 resolve();
             };
             request.onerror = (e) => reject(e.target.error);
         });
+    }
+
+    /**
+     * IndexedDB の open に成功したら fullfilled する Promise を返す
+     */
+    ready() {
+        return this._ready;
     }
 
     /**
@@ -30,8 +37,8 @@ export class SimpleIDB {
      * @param key 追加する値のキー。ObjectStore が autoIncrement の場合は省略可能
      */
     add(storeName, value, key = undefined) {
-        return new Promise(async (resolve, reject) => {
-            const store = await this.getObjectStore(storeName, "readwrite", () => resolve(key), reject);
+        return new Promise((resolve, reject) => {
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(key), reject);
             store.add(value, key).onsuccess = (event) => {
                 key = event.target.result;
             };
@@ -45,8 +52,8 @@ export class SimpleIDB {
      * @param key 追加もしくは更新する値のキー
      */
     put(storeName, value, key) {
-        return new Promise(async (resolve, reject) => {
-            const store = await this.getObjectStore(storeName, "readwrite", () => resolve(key), reject);
+        return new Promise((resolve, reject) => {
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(key), reject);
             store.put(value, key).onsuccess = (event) => {
                 key = event.target.result;
             };
@@ -59,9 +66,9 @@ export class SimpleIDB {
      * @param key 取得する値のキー
      */
     get(storeName, key) {
-        return new Promise(async (resolve, reject) => {
+        return new Promise((resolve, reject) => {
             let value = null;
-            const store = await this.getObjectStore(storeName, "readonly", () => resolve(value), reject);
+            const store = this.getObjectStore(storeName, "readonly", () => resolve(value), reject);
             store.get(key).onsuccess = (event) => {
                 value = event.target.result;
             };
@@ -74,8 +81,8 @@ export class SimpleIDB {
      * @param key 削除する値のキー
      */
     delete(storeName, key) {
-        return new Promise(async (resolve, reject) => {
-            const store = await this.getObjectStore(storeName, "readwrite", resolve, reject);
+        return new Promise((resolve, reject) => {
+            const store = this.getObjectStore(storeName, "readwrite", resolve, reject);
             store.delete(key);
         });
     }
@@ -86,9 +93,9 @@ export class SimpleIDB {
      * @param key 取得、削除する値のキー
      */
     getAndDelete(storeName, key) {
-        return new Promise(async (resolve, reject) => {
+        return new Promise((resolve, reject) => {
             let value = null;
-            const store = await this.getObjectStore(storeName, "readwrite", () => resolve(value), reject);
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(value), reject);
             store.get(key).onsuccess = (event) => {
                 value = event.target.result;
                 store.delete(key);
@@ -104,9 +111,9 @@ export class SimpleIDB {
      * @param direction 昇順、降順
      */
     getAll(storeName, query = null, count = Infinity, direction = "next") {
-        return new Promise(async (resolve, reject) => {
+        return new Promise((resolve, reject) => {
             const ret = [];
-            const store = await this.getObjectStore(storeName, "readonly", () => resolve(ret), reject);
+            const store = this.getObjectStore(storeName, "readonly", () => resolve(ret), reject);
 
             let index = 0;
             store.openCursor(query, direction).onsuccess = (event) => {
@@ -130,8 +137,8 @@ export class SimpleIDB {
      * @param direction 昇順、降順
      */
     deleteAll(storeName, query = null, count = Infinity, direction = "next") {
-        return new Promise(async (resolve, reject) => {
-            const store = await this.getObjectStore(storeName, "readwrite", resolve, reject);
+        return new Promise((resolve, reject) => {
+            const store = this.getObjectStore(storeName, "readwrite", resolve, reject);
 
             if (count === Infinity) {
                 if (query === null) {
@@ -163,9 +170,9 @@ export class SimpleIDB {
      * @param direction 昇順、降順
      */
     getAndDeleteAll(storeName, query = null, count = Infinity, direction = "next") {
-        return new Promise(async (resolve, reject) => {
+        return new Promise((resolve, reject) => {
             const ret = [];
-            const store = await this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
 
             let index = 0;
             store.openCursor(query, direction).onsuccess = (event) => {
@@ -187,8 +194,8 @@ export class SimpleIDB {
      * @param storeName ObjectStore の名前
      */
     clear(storeName) {
-        return new Promise(async (resolve, reject) => {
-            const store = await this.getObjectStore(storeName, "readwrite", resolve, reject);
+        return new Promise((resolve, reject) => {
+            const store = this.getObjectStore(storeName, "readwrite", resolve, reject);
             store.clear();
         });
     }
@@ -200,25 +207,26 @@ export class SimpleIDB {
      * @param oncomplete IDBTransaction が完了したときに呼ばれる callback
      * @param onerror IDBTransaction が失敗したときに呼ばれる callback
      */
-    async getObjectStores(storeNames, mode = "readonly", completeCallback, errorCallback) {
-        const transaction = await this.getTransaction(storeNames, mode, completeCallback, errorCallback);
+    getObjectStores(storeNames, mode = "readonly", completeCallback, errorCallback) {
+        const transaction = this.getTransaction(storeNames, mode, completeCallback, errorCallback);
         return storeNames.map(storeName => transaction.objectStore(storeName));
     }
 
     /**
      * @private
      */
-    async getObjectStore(storeName, mode, completeCallback, errorCallback) {
-        const transaction = await this.getTransaction(storeName, mode, completeCallback, errorCallback);
+    getObjectStore(storeName, mode, completeCallback, errorCallback) {
+        const transaction = this.getTransaction(storeName, mode, completeCallback, errorCallback);
         return transaction.objectStore(storeName);
     }
 
     /**
      * @private
      */
-    async getTransaction(storeName, mode, completeCallback, errorCallback) {
-        await this.loaded;
-        const transaction = this.db.transaction(storeName, mode);
+    getTransaction(storeName, mode, completeCallback, errorCallback) {
+        if (this._db === null) { throw new Error("Indexed DB hasn't been opened yet. Please await SimpleIDB#ready()."); }
+
+        const transaction = this._db.transaction(storeName, mode);
         if (completeCallback != null) { transaction.oncomplete = () => completeCallback(); }
         if (errorCallback != null) { transaction.onerror = (e) => errorCallback(e.target.error); }
         return transaction;

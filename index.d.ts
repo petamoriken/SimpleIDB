@@ -15,6 +15,11 @@ export declare class SimpleIDB {
     constructor(dbName: string, dbVersion: number, onupgradeneeded: (this: IDBOpenDBRequest, event: IDBVersionChangeEvent) => any);
 
     /**
+     * IndexedDB の open に成功したら fullfilled する Promise を返す
+     */
+    ready(): Promise<void>;
+
+    /**
      * ObjectStore に値を追加する。追加された key を返す
      * @param storeName ObjectStore の名前
      * @param value 追加する値
