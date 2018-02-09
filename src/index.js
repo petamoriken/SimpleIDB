@@ -1,11 +1,6 @@
 export class SimpleIDB {
 
     constructor(dbName, dbVersion, onupgradeneeded) {
-        const request = indexedDB.open(dbName, dbVersion);
-
-        // migration
-        request.onupgradeneeded = onupgradeneeded
-
         /**
          * @private {IDBDatabase | null}
          */
@@ -15,11 +10,16 @@ export class SimpleIDB {
          * @private {Promise<void>}
          */
         this._ready = new Promise((resolve, reject) => {
-            request.onsuccess = (event) => {
-                this._db = event.target.result;
+            const request = indexedDB.open(dbName, dbVersion);
+
+            // migration
+            request.onupgradeneeded = onupgradeneeded;
+
+            request.onsuccess = () => {
+                this._db = request.result;
                 resolve();
             };
-            request.onerror = (e) => reject(e.target.error);
+            request.onerror = () => reject(request.error);
         });
     }
 
