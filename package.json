@@ -1,7 +1,7 @@
 {
   "name": "@petamoriken/simpleidb",
   "description": "Simple IndexedDB Wrapper",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "main": "lib/index.js",
   "jsnext:main": "src/index.js",
   "author": "Kenta Moriuchi <moriken@kimamass.com> (https://moriken.kimamass.com)",
