@@ -3,21 +3,21 @@ export type SimpleIDBInputKey = string | number | Date | ArrayBuffer | ArrayBuff
 export type SimpleIDBQuery = IDBKeyRange | null;
 export type SimpleIDBCursorDirection = "next" | "nextunique" | "prev" | "prevunique";
 
+export interface SimpleIDBKeyArray extends Array<SimpleIDBKey> {}
+export interface SimpleIDBInputKeyArray extends Array<SimpleIDBInputKey> {}
+
 export interface SimpleIDBKeyAndValue {
     key: SimpleIDBKey,
     value: any,
 }
 
-export interface SimpleIDBKeyArray extends Array<SimpleIDBKey> {}
-export interface SimpleIDBInputKeyArray extends Array<SimpleIDBInputKey> {}
-
 export declare class SimpleIDB {
-    constructor(dbName: string, dbVersion: number, onupgradeneeded: (this: IDBOpenDBRequest, event: IDBVersionChangeEvent) => any);
+    constructor(name: string, version: number, onupgradeneeded: (this: IDBOpenDBRequest, event: IDBVersionChangeEvent) => any);
 
     /**
-     * IndexedDB の open に成功したら fullfilled する Promise を返す
+     * IndexedDB を開き、成功したら自身を返す
      */
-    ready(): Promise<void>;
+    ready(): Promise<this>;
 
     /**
      * ObjectStore に値を追加する。追加された key を返す

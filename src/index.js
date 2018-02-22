@@ -1,32 +1,46 @@
 export class SimpleIDB {
 
-    constructor(dbName, dbVersion, onupgradeneeded) {
+    constructor(name, version, onupgradeneeded) {
         /**
          * @private {IDBDatabase | null}
          */
         this._db = null;
 
         /**
-         * @private {Promise<void>}
+         * @private {Promise<SimpleIDB> | null}
          */
-        this._ready = new Promise((resolve, reject) => {
-            const request = indexedDB.open(dbName, dbVersion);
+        this._ready = null;
 
-            // migration
-            request.onupgradeneeded = onupgradeneeded;
-
-            request.onsuccess = () => {
-                this._db = request.result;
-                resolve();
-            };
-            request.onerror = () => reject(request.error);
-        });
+        /**
+         * @private {{name: string, version: number, onupgradeneeded: (this: IDBOpenDBRequest, event: IDBVersionChangeEvent) => any} | null}
+         */
+        this._readyData = {
+            name,
+            version,
+            onupgradeneeded
+        };
     }
 
     /**
-     * IndexedDB の open に成功したら fullfilled する Promise を返す
+     * IndexedDB を開き、成功したら自身を返す
      */
     ready() {
+        if (this._ready === null && this._readyData !== null) {
+            const {name, version, onupgradeneeded} = this._readyData;
+            this._ready = new Promise((resolve, reject) => {
+                const request = indexedDB.open(name, version);
+
+                // migration
+                request.onupgradeneeded = onupgradeneeded;
+
+                request.onsuccess = () => {
+                    this._db = request.result;
+                    resolve(this);
+                };
+                request.onerror = () => reject(request.error);
+            });
+            this._readyData = null;
+        }
         return this._ready;
     }
 
@@ -224,7 +238,7 @@ export class SimpleIDB {
      * @private
      */
     getTransaction(storeName, mode, completeCallback, errorCallback) {
-        if (this._db === null) { throw new Error("Indexed DB hasn't been opened yet. Please await SimpleIDB#ready()."); }
+        if (this._db === null) { throw new Error("Indexed DB hasn't been opened yet. Please await SimpleIDB#ready()"); }
 
         const transaction = this._db.transaction(storeName, mode);
         if (completeCallback != null) { transaction.oncomplete = () => completeCallback(); }
