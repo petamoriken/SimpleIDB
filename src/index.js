@@ -1,6 +1,53 @@
+const MAX_UINT32_INTEGER = -1 >>> 0;
+
 export class SimpleIDB {
 
+    /**
+     * @param name データベースの名前
+     */
+    static deleteDatabase(name) {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.deleteDatabase(name);
+            request.onsuccess = () => resolve();
+            request.onerror = (event) => reject(event.target.error);
+        });
+    }
+
+    /**
+     * データベースの名前
+     */
+    get name() {
+        return this._name;
+    }
+
+    /**
+     * データベースのバージョン
+     */
+    get version() {
+        return this._version;
+    }
+
+    /**
+     * @param name データベースの名前
+     * @param version データベースのバージョン. ObjectStore や Index の変更時に増やしていく
+     * @param onupgradeneeded ObjectStore や Index の初期化, 変更を行う函数
+     */
     constructor(name, version, onupgradeneeded) {
+        /**
+         * @private {string}
+         */
+        this._name = name;
+
+        /**
+         * @private {number}
+         */
+        this._version = version | 0;
+
+        /**
+         * @private {(this: IDBOpenDBRequest, event: IDBVersionChangeEvent, self: SimpleIDB) => any | null}
+         */
+        this._onupgradeneeded = onupgradeneeded;
+
         /**
          * @private {IDBDatabase | null}
          */
@@ -12,26 +59,38 @@ export class SimpleIDB {
         this._ready = null;
 
         /**
-         * @private {{name: string, version: number, onupgradeneeded: (this: IDBOpenDBRequest, event: IDBVersionChangeEvent) => any} | null}
+         * @private {IDBTransaction | null}
          */
-        this._readyData = {
-            name,
-            version,
-            onupgradeneeded
-        };
+        this._versionChangeTransaction = null;
+
+        /**
+         * @private {boolean}
+         */
+        this._useOpenKeyCursor = IDBObjectStore.prototype.openKeyCursor !== undefined && IDBIndex.prototype.openKeyCursor !== undefined;
+
+        /**
+         * @private {boolean}
+         */
+        this._useGetAll = IDBObjectStore.prototype.getAll !== undefined && IDBIndex.prototype.getAll !== undefined;
     }
 
     /**
      * IndexedDB を開き, 成功したら自身を返す
      */
     ready() {
-        if (this._ready === null && this._readyData !== null) {
-            const {name, version, onupgradeneeded} = this._readyData;
+        if (this._ready === null && this._onupgradeneeded !== null) {
+            const {_name: name, _version: version, _onupgradeneeded: onupgradeneeded} = this;
             this._ready = new Promise((resolve, reject) => {
                 const request = indexedDB.open(name, version);
 
                 // migration
-                request.onupgradeneeded = onupgradeneeded;
+                request.onupgradeneeded = (event) => {
+                    this._db = request.result;
+                    this._versionChangeTransaction = request.transaction;
+                    onupgradeneeded.call(request, event, this);
+                    this._db = null;
+                    this._versionChangeTransaction = null;
+                };
 
                 request.onsuccess = () => {
                     this._db = request.result;
@@ -39,37 +98,40 @@ export class SimpleIDB {
                 };
                 request.onerror = () => reject(request.error);
             });
-            this._readyData = null;
+            // for GC
+            this._onupgradeneeded = null;
         }
         return this._ready;
     }
 
     /**
-     * ObjectStore に値を追加する. 追加された key を返す
+     * ObjectStore に値を追加する. 追加されたプライマリキーを返す
      * @param storeName ObjectStore の名前
      * @param value 追加する値
-     * @param key 追加する値のキー. ObjectStore が autoIncrement の場合は省略可能
+     * @param primaryKey 追加する値のプライマリキー. ObjectStore が autoIncrement の場合は省略可能
      */
-    add(storeName, value, key = undefined) {
+    add(storeName, value, primaryKey = undefined) {
         return new Promise((resolve, reject) => {
-            const store = this.getObjectStore(storeName, "readwrite", () => resolve(key), reject);
-            store.add(value, key).onsuccess = (event) => {
-                key = event.target.result;
+            let ret;
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
+            store.add(value, primaryKey).onsuccess = (event) => {
+                ret = event.target.result;
             };
         });
     }
 
     /**
-     * ObjectStore の値を追加もしくは更新する. 追加もしくは更新された key を返す
+     * ObjectStore の値を追加もしくは更新する. 追加もしくは更新されたプライマリキーを返す
      * @param storeName ObjectStore の名前
      * @param value 追加もしくは更新する値
-     * @param key 追加もしくは更新する値のキー
+     * @param primaryKey 追加もしくは更新する値のプライマリキー
      */
-    put(storeName, value, key) {
+    put(storeName, value, primaryKey) {
         return new Promise((resolve, reject) => {
-            const store = this.getObjectStore(storeName, "readwrite", () => resolve(key), reject);
-            store.put(value, key).onsuccess = (event) => {
-                key = event.target.result;
+            let ret;
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
+            store.put(value, primaryKey).onsuccess = (event) => {
+                ret = event.target.result;
             };
         });
     }
@@ -77,14 +139,32 @@ export class SimpleIDB {
     /**
      * ObjectStore の値を取得する
      * @param storeName ObjectStore の名前
-     * @param key 取得する値のキー
+     * @param primaryKey 取得する値のプライマリキー
      */
-    get(storeName, key) {
+    get(storeName, primaryKey) {
         return new Promise((resolve, reject) => {
-            let value = null;
-            const store = this.getObjectStore(storeName, "readonly", () => resolve(value), reject);
-            store.get(key).onsuccess = (event) => {
-                value = event.target.result;
+            let ret;
+            const store = this.getObjectStore(storeName, "readonly", () => resolve(ret), reject);
+            store.get(primaryKey).onsuccess = (event) => {
+                ret = event.target.result;
+            };
+        });
+    }
+
+    /**
+     * ObjectStore の値を更新する
+     * @param storeName ObjectStore の名前
+     * @param primaryKey 更新する値のプライマリキー
+     * @param mapFn 更新を行う函数
+     */
+    update(storeName, primaryKey, mapFn) {
+        return new Promise((resolve, reject) => {
+            const store = this.getObjectStore(storeName, "readwrite", resolve, reject);
+            store.openCursor(primaryKey).onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor == null) { return; }
+
+                cursor.update(mapFn.call(this, cursor.value));
             };
         });
     }
@@ -92,52 +172,188 @@ export class SimpleIDB {
     /**
      * ObjectStore の値を削除する
      * @param storeName ObjectStore の名前
-     * @param key 削除する値のキー
+     * @param primaryKey 削除する値のプライマリキー
      */
-    delete(storeName, key) {
+    delete(storeName, primaryKey) {
         return new Promise((resolve, reject) => {
             const store = this.getObjectStore(storeName, "readwrite", resolve, reject);
-            store.delete(key);
+            store.delete(primaryKey);
         });
     }
 
     /**
      * ObjectStore の値を取得し, 同時に削除する
      * @param storeName ObjectStore の名前
-     * @param key 取得, 削除する値のキー
+     * @param primaryKey 取得, 削除する値のプライマリキー
      */
-    take(storeName, key) {
+    take(storeName, primaryKey) {
         return new Promise((resolve, reject) => {
-            let value = null;
-            const store = this.getObjectStore(storeName, "readwrite", () => resolve(value), reject);
-            store.get(key).onsuccess = (event) => {
-                value = event.target.result;
-                store.delete(key);
+            let ret;
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
+            store.get(primaryKey).onsuccess = (event) => {
+                ret = event.target.result;
             };
+            store.delete(primaryKey);
+        });
+    }
+
+    /**
+     * ObjectStore に値を複数追加する. 追加されたキーを返す
+     * @param storeName ObjectStore の名前
+     * @param keyAndValues 追加するプライマリキーと値のペア. プライマリキーはObjectStore が autoIncrement の場合は省略可能
+     */
+    addAll(storeName, keyAndValues) {
+        return new Promise((resolve, reject) => {
+            const ret = [];
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
+            for (const {primaryKey, value} of keyAndValues) {
+                store.add(value, primaryKey).onsuccess = (event) => {
+                    ret.push(event.target.result);
+                };
+            }
+        });
+    }
+
+    /**
+     * ObjectStore に値を複数追加もしくは更新する. 追加もしくは更新されたプライマリキーを返す
+     * @param storeName ObjectStore の名前
+     * @param keyAndValues 追加するプライマリキーと値のペア
+     */
+    putAll(storeName, keyAndValues) {
+        return new Promise((resolve, reject) => {
+            const ret = [];
+            const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
+            for (const {primaryKey, value} of keyAndValues) {
+                store.put(value, primaryKey).onsuccess = (event) => {
+                    ret.push(event.target.result);
+                };
+            }
         });
     }
 
     /**
      * ObjectStore の値を複数取得する
      * @param storeName ObjectStore の名前
-     * @param indexName ObjectStore の Index の名前. null の場合は直接 ObjectStore から取得する
      * @param options 取得する際のオプション
+     * @param options.indexName ObjectStore の Index の名前
      * @param options.query 取得する際のクエリ
      * @param options.count 取得する値の個数の上限値
      * @param options.direction 昇順, 降順
      */
-    getAll(storeName, indexName = null, {query = null, count = Infinity, direction = "next"} = {}) {
+    getAll(storeName, {indexName = null, query = null, count = MAX_UINT32_INTEGER, direction = "next"} = {}) {
         return new Promise((resolve, reject) => {
             const ret = [];
+            if (count === 0) { resolve(ret); return; }
+
             const store = this.getObjectStore(storeName, "readonly", () => resolve(ret), reject);
             const index = indexName !== null ? store.index(indexName) : null;
 
-            let i = 0;
+            let i = 1;
             (index || store).openCursor(query, direction).onsuccess = (event) => {
                 const cursor = event.target.result;
                 if (cursor == null) { return; }
 
-                ret.push({ key: cursor.key, value: cursor.value });
+                ret.push({ primaryKey: cursor.primaryKey, key: cursor.key, value: cursor.value });
+                if (i < count) {
+                    ++i;
+                    cursor.continue();
+                }
+            };
+        });
+    }
+
+    /**
+     * ObjectStore のキーのみを複数取得する. 値を取らない分効率的
+     * @param storeName ObjectStore の名前
+     * @param options 取得する際のオプション
+     * @param options.indexName ObjectStore の Index の名前
+     * @param options.query 取得する際のクエリ
+     * @param options.count 取得する値の個数の上限値
+     * @param options.direction 昇順, 降順
+     */
+    getAllKeys(storeName, {indexName = null, query = null, count = MAX_UINT32_INTEGER, direction = "next"} = {}) {
+        return new Promise((resolve, reject) => {
+            const ret = [];
+            if (count === 0) { resolve(ret); return; }
+
+            const store = this.getObjectStore(storeName, "readonly", () => resolve(ret), reject);
+            const index = indexName !== null ? store.index(indexName) : null;
+
+            let i = 1;
+            (index || store)[this._useOpenKeyCursor ? "openKeyCursor" : "openCursor"](query, direction).onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor == null) { return; }
+
+                ret.push({ primaryKey: cursor.primaryKey, key: cursor.key });
+                if (i < count) {
+                    ++i;
+                    cursor.continue();
+                }
+            };
+        });
+    }
+
+    /**
+     * ObjectStore の値のみを複数取得する. キーを取らない分効率的
+     * @param storeName ObjectStore の名前
+     * @param options 取得する際のオプション
+     * @param options.indexName ObjectStore の Index の名前
+     * @param options.query 取得する際のクエリ
+     * @param options.count 取得する値の個数の上限値
+     * @param options.direction 昇順, 降順
+     */
+    getAllValues(storeName, {indexName = null, query = null, count = MAX_UINT32_INTEGER, direction = "next"} = {}) {
+        return new Promise((resolve, reject) => {
+            let ret = [];
+            if (count === 0) { resolve(ret); return; }
+
+            const store = this.getObjectStore(storeName, "readonly", () => resolve(ret), reject);
+            const index = indexName !== null ? store.index(indexName) : null;
+
+            if (this._useGetAll && direction === "next") {
+                (index || store).getAll(query, count).onsuccess = (event) => {
+                    ret = event.target.result.map((value) => ({ value }));
+                };
+                return;
+            }
+
+            let i = 1;
+            (index || store).openCursor(query, direction).onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor == null) { return; }
+
+                ret.push({ value: cursor.value });
+                if (i < count) {
+                    ++i;
+                    cursor.continue();
+                }
+            };
+        });
+    }
+
+    /**
+     * ObjectStore の値を複数更新する
+     * @param storeName ObjectStore の名前
+     * @param mapFn 更新を行う函数
+     * @param options 削除する際のオプション
+     * @param options.indexName ObjectStore の Index の名前
+     * @param options.query 更新する際のクエリ
+     * @param options.count 更新する値の個数の上限値
+     * @param options.direction 昇順, 降順
+     */
+    updateAll(storeName, mapFn, {indexName = null, query = null, count = MAX_UINT32_INTEGER, direction = "next"} = {}) {
+        return new Promise((resolve, reject) => {
+            if (count === 0) { resolve(); return; }
+
+            const store = this.getObjectStore(storeName, "readwrite", resolve, reject);
+            const index = indexName !== null ? store.index(indexName) : null;
+
+            let i = 1;
+            (index || store).openCursor(query, direction).onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor == null) { return; }
+
+                cursor.update(mapFn.call(this, cursor.value, cursor.key, cursor.primaryKey));
                 if (i < count) {
                     ++i;
                     cursor.continue();
@@ -149,25 +365,27 @@ export class SimpleIDB {
     /**
      * ObjectStore の値を複数削除する
      * @param storeName ObjectStore の名前
-     * @param indexName ObjectStore の Index の名前. null の場合は直接 ObjectStore から削除する
      * @param options 削除する際のオプション
+     * @param options.indexName ObjectStore の Index の名前
      * @param options.query 削除する際のクエリ
      * @param options.count 削除する値の個数の上限値
      * @param options.direction 昇順, 降順
      */
-    deleteAll(storeName, indexName = null, {query = null, count = Infinity, direction = "next"} = {}) {
+    deleteAll(storeName, {indexName = null, query = null, count = MAX_UINT32_INTEGER, direction = "next"} = {}) {
         return new Promise((resolve, reject) => {
+            if (count === 0) { resolve(); return; }
+
             const store = this.getObjectStore(storeName, "readwrite", resolve, reject);
             const index = indexName !== null ? store.index(indexName) : null;
 
-            if (index === null && count === Infinity) {
+            if (index === null && count === MAX_UINT32_INTEGER) {
                 if (query === null) {
                     store.clear();
                 } else {
                     store.delete(query);
                 }
             } else {
-                let i = 0;
+                let i = 1;
                 (index || store).openCursor(query, direction).onsuccess = (event) => {
                     const cursor = event.target.result;
                     if (cursor == null) { return; }
@@ -185,24 +403,26 @@ export class SimpleIDB {
     /**
      * ObjectStore の値を複数取得し, 同時に削除する
      * @param storeName ObjectStore の名前
-     * @param indexName ObjectStore の Index の名前. null の場合は直接 ObjectStore から取得, 削除する
      * @param options 取得, 削除する際のオプション
+     * @param options.indexName ObjectStore の Index の名前
      * @param options.query 取得, 削除する際のクエリ
      * @param options.count 取得, 削除する値の個数の上限値
      * @param options.direction 昇順, 降順
      */
-    takeAll(storeName, indexName = null, {query = null, count = Infinity, direction = "next"} = {}) {
+    takeAll(storeName, {indexName = null, query = null, count = MAX_UINT32_INTEGER, direction = "next"} = {}) {
         return new Promise((resolve, reject) => {
             const ret = [];
+            if (count === 0) { resolve(ret); return; }
+
             const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
             const index = indexName !== null ? store.index(indexName) : null;
 
-            let i = 0;
+            let i = 1;
             (index || store).openCursor(query, direction).onsuccess = (event) => {
                 const cursor = event.target.result;
                 if (cursor == null) { return; }
 
-                ret.push({ key: cursor.key, value: cursor.value });
+                ret.push({ primaryKey: cursor.primaryKey, key: cursor.key, value: cursor.value });
                 cursor.delete();
                 if (i < count) {
                     ++i;
@@ -213,14 +433,15 @@ export class SimpleIDB {
     }
 
     /**
-     * ObjectStore の値数を数える
+     * ObjectStore の値の個数を数える
      * @param storeName ObjectStore の名前
-     * @param indexName ObjectStore の Index の名前. null の場合は直接 ObjectStore から取得する
-     * @param query 取得する際のクエリ
+     * @param options 取得する際のオプション
+     * @param options.indexName ObjectStore の Index の名前
+     * @param options.query 取得する際のクエリ
      */
-    count(storeName, indexName = null, query = null) {
+    count(storeName, {indexName = null, query = null} = {}) {
         return new Promise((resolve, reject) => {
-            let ret = 0;
+            let ret;
             const store = this.getObjectStore(storeName, "readonly", () => resolve(ret), reject);
             const index = indexName !== null ? store.index(indexName) : null;
 
@@ -250,7 +471,16 @@ export class SimpleIDB {
      */
     getObjectStores(storeNames, mode = "readonly", completeCallback = null, errorCallback = null) {
         const transaction = this.getTransaction(storeNames, mode, completeCallback, errorCallback);
+        if (completeCallback !== null) { transaction.oncomplete = () => completeCallback(); }
+        if (errorCallback !== null) { transaction.onerror = (event) => errorCallback(event.target.error); }
         return storeNames.map(storeName => transaction.objectStore(storeName));
+    }
+
+    /**
+     * データベースとのコネクションを閉じる
+     */
+    close() {
+        this._db.close();
     }
 
     /**
@@ -258,18 +488,17 @@ export class SimpleIDB {
      */
     getObjectStore(storeName, mode, completeCallback, errorCallback) {
         const transaction = this.getTransaction(storeName, mode, completeCallback, errorCallback);
+        transaction.oncomplete = () => completeCallback();
+        transaction.onerror = (event) => errorCallback(event.target.error);
         return transaction.objectStore(storeName);
     }
 
     /**
      * @private
      */
-    getTransaction(storeName, mode, completeCallback, errorCallback) {
+    getTransaction(storeName, mode) {
         if (this._db === null) { throw new Error("Indexed DB hasn't been opened yet. Please await SimpleIDB#ready()"); }
-
-        const transaction = this._db.transaction(storeName, mode);
-        if (completeCallback !== null) { transaction.oncomplete = () => completeCallback(); }
-        if (errorCallback !== null) { transaction.onerror = (event) => errorCallback(event.target.error); }
+        const transaction = this._versionChangeTransaction || this._db.transaction(storeName, mode);
         return transaction;
     }
 }
