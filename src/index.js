@@ -44,7 +44,7 @@ export class SimpleIDB {
         this._version = version | 0;
 
         /**
-         * @private {(this: IDBOpenDBRequest, event: IDBVersionChangeEvent, self: SimpleIDB) => any | null}
+         * @private {(this: SimpleIDB, db: IDBDatabase, transaction: IDBTransaction, oldVersion: number, newVersion: number) => any | null}
          */
         this._onupgradeneeded = onupgradeneeded;
 
@@ -83,11 +83,13 @@ export class SimpleIDB {
             this._ready = new Promise((resolve, reject) => {
                 const request = indexedDB.open(name, version);
 
-                // migration
                 request.onupgradeneeded = (event) => {
-                    this._db = request.result;
-                    this._versionChangeTransaction = request.transaction;
-                    onupgradeneeded.call(request, event, this);
+                    const {oldVersion, newVersion} = event;
+                    const {result: db, transaction} = request;
+
+                    this._db = db;
+                    this._versionChangeTransaction = transaction;
+                    onupgradeneeded.call(this, db, transaction, oldVersion, newVersion);
                     this._db = null;
                     this._versionChangeTransaction = null;
                 };

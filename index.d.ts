@@ -44,7 +44,7 @@ export declare class SimpleIDB {
      * @param version データベースのバージョン. ObjectStore や Index の変更時に増やしていく
      * @param onupgradeneeded ObjectStore や Index の初期化, 変更を行う函数
      */
-    constructor(name: string, version: number, onupgradeneeded: (this: IDBOpenDBRequest, event: IDBVersionChangeEvent, self: SimpleIDB) => any);
+    constructor(name: string, version: number, onupgradeneeded: (this: SimpleIDB, db: IDBDatabase, transaction: IDBTransaction, oldVersion: number, newVersion: number) => any);
 
     /**
      * IndexedDB を開き, 成功したら自身を返す

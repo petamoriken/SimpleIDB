@@ -19,8 +19,7 @@ describe("SimpleIDB test", () => {
         ]);
 
         beforeEach(async () => {
-            simpleIDB = new SimpleIDB("basic test" + Math.random(), 1, (event, simpleIDB) => {
-                const db = event.target.result;
+            simpleIDB = new SimpleIDB("basic test" + Math.random(), 1, (db) => {
                 db.createObjectStore(storeName, { autoIncrement: true });
 
                 // setup
