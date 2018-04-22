@@ -19,7 +19,7 @@ describe("SimpleIDB test", () => {
         ]);
 
         beforeEach(async () => {
-            simpleIDB = new SimpleIDB("basic test" + Math.random(), 1, (db) => {
+            simpleIDB = new SimpleIDB("test", 1, (db) => {
                 db.createObjectStore(storeName, { autoIncrement: true });
 
                 // setup
@@ -224,6 +224,84 @@ describe("SimpleIDB test", () => {
         it("clear", async () => {
             assert(await simpleIDB.clear(storeName) === undefined);
             await checkCurrentStore([]);
+        });
+    });
+
+    describe.only("store object with index", () => {
+        let simpleIDB;
+
+        const storeName = "user";
+        const indexName = "birthday";
+        const setupData = Object.freeze([
+            { value: { id: faker.random.uuid(), name: faker.name.findName(), birthday: faker.date.between(1990, 1999) } },
+            { value: { id: faker.random.uuid(), name: faker.name.findName(), birthday: faker.date.between(2000, 2009) } },
+            { value: { id: faker.random.uuid(), name: faker.name.findName(), birthday: faker.date.between(2010, 2020) } },
+        ]);
+
+        beforeEach(async () => {
+            simpleIDB = new SimpleIDB("test", 1, (db) => {
+                const store = db.createObjectStore(storeName, { autoIncrement: true });
+                store.createIndex(indexName, "birthday");
+
+                // setup
+                simpleIDB.addAll(storeName, setupData);
+            });
+
+            await simpleIDB.ready();
+        });
+
+        afterEach(async () => {
+            simpleIDB.close();
+            SimpleIDB.deleteDatabase(simpleIDB.name);
+        });
+
+        it("getAll", async () => {
+            const value = setupData[1].value;
+            assert.deepStrictEqual(await simpleIDB.getAll(storeName, { indexName, query: IDBKeyRange.lowerBound(new Date(2000, 0)), count: 1 }), [
+                { primaryKey: 2, key: value.birthday, value },
+            ]);
+        });
+
+        it("getAllKeys", async () => {
+            const value = setupData[1].value;
+            assert.deepStrictEqual(await simpleIDB.getAllKeys(storeName, { indexName, query: IDBKeyRange.lowerBound(new Date(2000, 0)), count: 1 }), [
+                { primaryKey: 2, key: value.birthday },
+            ]);
+        });
+
+        it("getAllValues", async () => {
+            const value = setupData[1].value;
+            assert.deepStrictEqual(await simpleIDB.getAllValues(storeName, { indexName, query: IDBKeyRange.lowerBound(new Date(2000, 0)), count: 1 }), [
+                { value },
+            ]);
+        });
+
+        it("updateAll", async () => {
+            const name = faker.name.findName();
+            await simpleIDB.updateAll(storeName, (value) => Object.assign(value, name), { indexName, query: IDBKeyRange.lowerBound(new Date(2000, 0)), count: 1 });
+            assert.deepStrictEqual(await simpleIDB.getAll(storeName), [
+                { primaryKey: 1, key: 1, value: setupData[0].value },
+                { primaryKey: 2, key: 2, value: Object.assign(setupData[1].value, name) },
+                { primaryKey: 3, key: 3, value: setupData[2].value },
+            ]);
+        });
+
+        it("deleteAll", async () => {
+            await simpleIDB.deleteAll(storeName, { indexName, query: IDBKeyRange.lowerBound(new Date(2000, 0)), count: 1 });
+            assert.deepStrictEqual(await simpleIDB.getAll(storeName), [
+                { primaryKey: 1, key: 1, value: setupData[0].value },
+                { primaryKey: 3, key: 3, value: setupData[2].value },
+            ]);
+        });
+
+        it("takeAll", async () => {
+            assert.deepStrictEqual(await simpleIDB.takeAll(storeName, { indexName, query: IDBKeyRange.lowerBound(new Date(2000, 0)), count: 1 }), [
+                { primaryKey: 2, key: setupData[1].value.birthday, value: setupData[1].value }
+            ]);
+            assert.deepStrictEqual(await simpleIDB.getAll(storeName), [
+                { primaryKey: 1, key: 1, value: setupData[0].value },
+                { primaryKey: 3, key: 3, value: setupData[2].value },
+            ]);
         });
     });
 });
