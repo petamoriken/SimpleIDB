@@ -227,7 +227,7 @@ describe("SimpleIDB test", () => {
         });
     });
 
-    describe.only("store object with index", () => {
+    describe("store object with index", () => {
         let simpleIDB;
 
         const storeName = "user";

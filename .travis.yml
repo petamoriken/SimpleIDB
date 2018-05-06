@@ -1,0 +1,20 @@
+language: node_js
+node_js:
+  - node
+
+dist: trusty
+sudo: false
+cache: yarn
+
+before_install:
+  - yarn global add greenkeeper-lockfile@1
+
+before_script:
+  - greenkeeper-lockfile-update
+  - yarn run build
+
+script:
+  - yarn test
+
+after_script:
+  - greenkeeper-lockfile-upload
