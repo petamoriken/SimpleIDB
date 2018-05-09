@@ -141,7 +141,7 @@ export declare class SimpleIDB {
      * @param options.count 取得する値の個数の上限値
      * @param options.direction 昇順, 降順
      */
-    getAllValues(storeName: string, options?: SimpleIDBQueryOptions): Promise<SimpleIDBResultKey[]>;
+    getAllValues(storeName: string, options?: SimpleIDBQueryOptions): Promise<SimpleIDBResultValue[]>;
 
     /**
      * ObjectStore の値を複数更新する
