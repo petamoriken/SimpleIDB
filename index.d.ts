@@ -55,17 +55,17 @@ export declare class SimpleIDB {
      * ObjectStore に値を追加する. 追加されたプライマリキーを返す
      * @param storeName ObjectStore の名前
      * @param value 追加する値
-     * @param primaryKey 追加する値のプライマリキー. ObjectStore が autoIncrement の場合は省略可能
+     * @param primaryKey 追加する値のプライマリキー. ObjectStore に keyPath を付けている場合は省略しなければならず, autoIncrement の場合は省略可能
      */
-    add(storeName: string, value: any, primaryKey?: SimpleIDBInputKey): Promise<SimpleIDBKey>;
+    add(storeName: string, value: any, primaryKey?: SimpleIDBInputKey | null): Promise<SimpleIDBKey>;
 
     /**
      * ObjectStore の値を追加もしくは更新する. 追加もしくは更新されたプライマリキーを返す
      * @param storeName ObjectStore の名前
      * @param value 追加もしくは更新する値
-     * @param primaryKey 追加もしくは更新する値のプライマリキー
+     * @param primaryKey 追加もしくは更新する値のプライマリキー. ObjectStore に keyPath を付けている場合は省略しなければならない
      */
-    put(storeName: string, value: any, primaryKey: SimpleIDBInputKey): Promise<SimpleIDBKey>;
+    put(storeName: string, value: any, primaryKey: SimpleIDBInputKey | null): Promise<SimpleIDBKey>;
 
     /**
      * ObjectStore の値を取得する
@@ -99,16 +99,16 @@ export declare class SimpleIDB {
     /**
      * ObjectStore に値を複数追加する. 追加されたプライマリキーを返す
      * @param storeName ObjectStore の名前
-     * @param keyAndValues 追加するプライマリキーと値のペア. プライマリキーはObjectStore が autoIncrement の場合は省略可能
+     * @param keyAndValues 追加するプライマリキーと値のペア. プライマリキーは ObjectStore に keyPath を付けている場合は省略しなければならず, ObjectStore が autoIncrement の場合は省略可能
      */
-    addAll(storeName: string, values: {value: any, primaryKey?: SimpleIDBInputKey}[]): Promise<SimpleIDBKey[]>;
+    addAll(storeName: string, values: {value: any, primaryKey?: SimpleIDBInputKey | null}[]): Promise<SimpleIDBKey[]>;
 
     /**
      * ObjectStore に値を複数追加もしくは更新する. 追加もしくは更新されたキーを返す
      * @param storeName ObjectStore の名前
-     * @param keyAndValues 追加するプライマリキーと値のペア
+     * @param keyAndValues 追加するプライマリキーと値のペア. プライマリキーは ObjectStore に keyPath を付けている場合は省略しなければならない
      */
-    putAll(storeName: string, keyAndValues: {value: any, primaryKey: SimpleIDBInputKey}[]): Promise<SimpleIDBKey[]>;
+    putAll(storeName: string, keyAndValues: {value: any, primaryKey: SimpleIDBInputKey | null}[]): Promise<SimpleIDBKey[]>;
 
     /**
      * ObjectStore の値を複数取得する

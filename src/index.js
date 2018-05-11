@@ -110,13 +110,15 @@ export class SimpleIDB {
      * ObjectStore に値を追加する. 追加されたプライマリキーを返す
      * @param storeName ObjectStore の名前
      * @param value 追加する値
-     * @param primaryKey 追加する値のプライマリキー. ObjectStore が autoIncrement の場合は省略可能
+     * @param primaryKey 追加する値のプライマリキー. ObjectStore に keyPath を付けている場合は省略しなければならず, autoIncrement の場合は省略可能
      */
     add(storeName, value, primaryKey = undefined) {
         return new Promise((resolve, reject) => {
             let ret;
             const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
-            store.add(value, primaryKey).onsuccess = (event) => {
+            // Edge bug https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/106663/
+            const request = primaryKey != null ? store.add(value, primaryKey) : store.add(value);
+            request.onsuccess = (event) => {
                 ret = event.target.result;
             };
         });
@@ -126,13 +128,15 @@ export class SimpleIDB {
      * ObjectStore の値を追加もしくは更新する. 追加もしくは更新されたプライマリキーを返す
      * @param storeName ObjectStore の名前
      * @param value 追加もしくは更新する値
-     * @param primaryKey 追加もしくは更新する値のプライマリキー
+     * @param primaryKey 追加もしくは更新する値のプライマリキー. ObjectStore に keyPath を付けている場合は省略しなければならない
      */
-    put(storeName, value, primaryKey) {
+    put(storeName, value, primaryKey = undefined) {
         return new Promise((resolve, reject) => {
             let ret;
             const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
-            store.put(value, primaryKey).onsuccess = (event) => {
+            // Edge bug https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/106663/
+            const request = primaryKey != null ? store.put(value, primaryKey) : store.put(value);
+            request.onsuccess = (event) => {
                 ret = event.target.result;
             };
         });
@@ -202,14 +206,16 @@ export class SimpleIDB {
     /**
      * ObjectStore に値を複数追加する. 追加されたキーを返す
      * @param storeName ObjectStore の名前
-     * @param keyAndValues 追加するプライマリキーと値のペア. プライマリキーはObjectStore が autoIncrement の場合は省略可能
+     * @param keyAndValues 追加するプライマリキーと値のペア. プライマリキーは ObjectStore に keyPath を付けている場合は省略しなければならず, ObjectStore が autoIncrement の場合は省略可能
      */
     addAll(storeName, keyAndValues) {
         return new Promise((resolve, reject) => {
             const ret = [];
             const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
             for (const {primaryKey, value} of keyAndValues) {
-                store.add(value, primaryKey).onsuccess = (event) => {
+                // Edge bug https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/106663/
+                const request = primaryKey != null ? store.add(value, primaryKey) : store.add(value);
+                request.onsuccess = (event) => {
                     ret.push(event.target.result);
                 };
             }
@@ -219,14 +225,16 @@ export class SimpleIDB {
     /**
      * ObjectStore に値を複数追加もしくは更新する. 追加もしくは更新されたプライマリキーを返す
      * @param storeName ObjectStore の名前
-     * @param keyAndValues 追加するプライマリキーと値のペア
+     * @param keyAndValues 追加するプライマリキーと値のペア. プライマリキーは ObjectStore に keyPath を付けている場合は省略しなければならない
      */
     putAll(storeName, keyAndValues) {
         return new Promise((resolve, reject) => {
             const ret = [];
             const store = this.getObjectStore(storeName, "readwrite", () => resolve(ret), reject);
             for (const {primaryKey, value} of keyAndValues) {
-                store.put(value, primaryKey).onsuccess = (event) => {
+                // Edge bug https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/106663/
+                const request = primaryKey != null ? store.put(value, primaryKey) : store.put(value);
+                request.onsuccess = (event) => {
                     ret.push(event.target.result);
                 };
             }
@@ -446,8 +454,10 @@ export class SimpleIDB {
             let ret;
             const store = this.getObjectStore(storeName, "readonly", () => resolve(ret), reject);
             const index = indexName !== null ? store.index(indexName) : null;
-
-            (index || store).count(query).onsuccess = (event) => {
+            const target = index || store;
+            // Edge bug
+            const request = query != null ? target.count(query) : target.count();
+            request.onsuccess = (event) => {
                 ret = event.target.result;
             };
         });
