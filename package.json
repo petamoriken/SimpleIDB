@@ -39,7 +39,7 @@
     "babel-cli": "^6.26.0",
     "babel-eslint": "^8.2.1",
     "babel-preset-env": "^1.6.1",
-    "eslint": "^4.15.0",
+    "eslint": "^5.0.0",
     "fake-indexeddb": "^2.0.4",
     "faker": "^4.1.0",
     "intelli-espower-loader": "^1.0.1",
